@@ -1,0 +1,29 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      args:
+        WITH_MODELS: "true"     # bake MiniLM + DistilBERT into the image
+    ports:
+      - "8000:8000"
+    environment:
+      EMBEDDER: minilm          # real semantic embeddings, run in-process
+      MODEL_BACKEND: stub       # "hf" runs DistilBERT sentiment for real
+      CACHE_THRESHOLD: "0.92"   # calibrate with: npm run bench:sweep
+      CORS_ORIGINS: http://localhost:3000
+    stop_grace_period: 35s      # lets in-flight batches drain on shutdown
+    deploy:
+      resources:
+        limits:
+          memory: 1g
+
+  frontend:
+    build:
+      context: ./frontend
+      args:
+        NEXT_PUBLIC_API_URL: http://localhost:8000
+    ports:
+      - "3000:3000"
+    depends_on:
+      backend:
+        condition: service_healthy
