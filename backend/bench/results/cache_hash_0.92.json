@@ -1,0 +1,66 @@
+{
+  "threshold": 0.92,
+  "embedder": "hash",
+  "requests": 1500,
+  "topics": 30,
+  "phrasings_per_topic": 7,
+  "hit_rate": 0.938,
+  "wrong_answer_rate_of_hits": 0,
+  "wrong_answers": 0,
+  "avg_hit_similarity": 1,
+  "model_calls": 93,
+  "inference_calls_saved": 1407,
+  "client_hit_latency_ms": {
+    "p50": 7.7,
+    "p99": 24.54
+  },
+  "client_miss_latency_ms": {
+    "p50": 174.57,
+    "p99": 281.45
+  },
+  "server_cache_hit_latency_ms": {
+    "p50": 0.085,
+    "p95": 0.144,
+    "p99": 0.219,
+    "mean": 0.106,
+    "max": 5.919,
+    "samples": 1407
+  },
+  "server_model_path_latency_ms": {
+    "p50": 247.848,
+    "p95": 54962.244,
+    "p99": 58952.783,
+    "mean": 14830.742,
+    "max": 59960.977,
+    "samples": 1434
+  },
+  "throughput_rps": 818.4,
+  "wrong_examples": [],
+  "hit_examples": [
+    {
+      "asked": "What's the capital of Brazil",
+      "matched": "What is the capital of Brazil?",
+      "similarity": 1
+    },
+    {
+      "asked": "What's the capital of France",
+      "matched": "What is the capital of France?",
+      "similarity": 1
+    },
+    {
+      "asked": "capital of France?",
+      "matched": "What is the capital of France?",
+      "similarity": 1
+    },
+    {
+      "asked": "Give me the height of Mount Everest",
+      "matched": "height of Mount Everest?",
+      "similarity": 1
+    },
+    {
+      "asked": "Tell me the capital of Brazil",
+      "matched": "What is the capital of Brazil?",
+      "similarity": 1
+    }
+  ]
+}

@@ -1,0 +1,74 @@
+{
+  "config": {
+    "lifetimeS": 600,
+    "rps": 20,
+    "topics": 500,
+    "durationS": 14400,
+    "capacity": 10000
+  },
+  "rows": [
+    {
+      "ttl_s": 5,
+      "hit_rate": 0.5470830290676145,
+      "stale_rate_of_all": 0.001941532530187197,
+      "stale_rate_of_hits": 0.0035488809321980288,
+      "model_calls_per_1k": 452.91697093238554
+    },
+    {
+      "ttl_s": 15,
+      "hit_rate": 0.6818170806410865,
+      "stale_rate_of_all": 0.007257386302678346,
+      "stale_rate_of_hits": 0.010644183768254243,
+      "model_calls_per_1k": 318.1829193589136
+    },
+    {
+      "ttl_s": 30,
+      "hit_rate": 0.7574883975261899,
+      "stale_rate_of_all": 0.0157849017293829,
+      "stale_rate_of_hits": 0.020838473276862488,
+      "model_calls_per_1k": 242.51160247381006
+    },
+    {
+      "ttl_s": 60,
+      "hit_rate": 0.8254489577673414,
+      "stale_rate_of_all": 0.03527290471955064,
+      "stale_rate_of_hits": 0.042731781762686,
+      "model_calls_per_1k": 174.55104223265857
+    },
+    {
+      "ttl_s": 120,
+      "hit_rate": 0.8825424731871243,
+      "stale_rate_of_all": 0.07266384492657824,
+      "stale_rate_of_hits": 0.08233467185343205,
+      "model_calls_per_1k": 117.45752681287571
+    },
+    {
+      "ttl_s": 300,
+      "hit_rate": 0.9377705946073155,
+      "stale_rate_of_all": 0.18165269063184597,
+      "stale_rate_of_hits": 0.19370695954473993,
+      "model_calls_per_1k": 62.22940539268447
+    },
+    {
+      "ttl_s": 900,
+      "hit_rate": 0.9746527909962727,
+      "stale_rate_of_all": 0.4502625048884398,
+      "stale_rate_of_hits": 0.4619722110765101,
+      "model_calls_per_1k": 25.347209003727325
+    },
+    {
+      "ttl_s": 1800,
+      "hit_rate": 0.9863365946003938,
+      "stale_rate_of_all": 0.6588405486127213,
+      "stale_rate_of_hits": 0.6679672560254597,
+      "model_calls_per_1k": 13.663405399606155
+    },
+    {
+      "ttl_s": 3600,
+      "hit_rate": 0.9930783154004021,
+      "stale_rate_of_all": 0.8007212395352781,
+      "stale_rate_of_hits": 0.8063022091187572,
+      "model_calls_per_1k": 6.92168459959785
+    }
+  ]
+}

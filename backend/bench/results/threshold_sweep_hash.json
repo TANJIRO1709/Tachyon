@@ -1,0 +1,92 @@
+{
+  "embedder": "hash",
+  "rows": [
+    {
+      "threshold": 0.6,
+      "paraphrase_hit_rate": 0.4375,
+      "false_positive_rate": 0.25
+    },
+    {
+      "threshold": 0.65,
+      "paraphrase_hit_rate": 0.375,
+      "false_positive_rate": 0.25
+    },
+    {
+      "threshold": 0.7,
+      "paraphrase_hit_rate": 0.25,
+      "false_positive_rate": 0.08333333333333333
+    },
+    {
+      "threshold": 0.75,
+      "paraphrase_hit_rate": 0.25,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.8,
+      "paraphrase_hit_rate": 0.25,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.85,
+      "paraphrase_hit_rate": 0.0625,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.88,
+      "paraphrase_hit_rate": 0,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.9,
+      "paraphrase_hit_rate": 0,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.92,
+      "paraphrase_hit_rate": 0,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.94,
+      "paraphrase_hit_rate": 0,
+      "false_positive_rate": 0
+    },
+    {
+      "threshold": 0.96,
+      "paraphrase_hit_rate": 0,
+      "false_positive_rate": 0
+    }
+  ],
+  "paraphrase_sims": [
+    0.8133949513476741,
+    0.8133949513476741,
+    0.40823944753017327,
+    0.8656767439762779,
+    0.013627625744658534,
+    0.6486248201960562,
+    0.6697041789699851,
+    0.41170555992533364,
+    0.298673913892172,
+    0.8158173938348319,
+    0.5161372466770163,
+    0.5780783400004605,
+    0.5783416385026597,
+    0.35803028216273247,
+    0.6678664974885897,
+    0.5820145823305836
+  ],
+  "different_sims": [
+    0.49928313532526125,
+    0.3328785098126743,
+    0.33044523169545015,
+    0.33884841579656555,
+    0.6701713959941797,
+    0,
+    0.6653478046898176,
+    0.3322962366521721,
+    0.7475727766983404,
+    0,
+    0.023278854769265014,
+    0
+  ]
+}
