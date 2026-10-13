@@ -1,0 +1,5 @@
+node_modules
+dist
+bench/results
+test
+*.tmp.mjs
