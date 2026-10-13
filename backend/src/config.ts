@@ -65,6 +65,11 @@ export function loadSettings() {
     embedder: str("EMBEDDER", "minilm"),
     embedding_dim: int("EMBEDDING_DIM", 384),
     embedder_model: str("EMBEDDER_MODEL", "Xenova/all-MiniLM-L6-v2"),
+    /** Weight precision for the embedder. "fp32" is full precision, ~90 MB.
+     *  "q8" is quantised to 8-bit: roughly a quarter of the memory and faster,
+     *  at some cost in similarity precision. Worth it on a 512 MB host; re-run
+     *  the threshold sweep after switching, because the scores shift. */
+    embedder_dtype: str("EMBEDDER_DTYPE", "fp32"),
     embed_batch_window_ms: float("EMBED_BATCH_WINDOW_MS", 3),
     embed_max_batch_size: int("EMBED_MAX_BATCH_SIZE", 64),
 
@@ -95,6 +100,12 @@ export function loadSettings() {
 
     max_input_chars: int("MAX_INPUT_CHARS", 4000),
     cors_origins: str("CORS_ORIGINS", "http://localhost:3000"),
+    /** When set, every /v1/admin/* route requires `X-Admin-Token` to match.
+     *  Left empty (the default) the admin API is open, which is what makes the
+     *  public demo interactive: a visitor can break the model and watch the
+     *  breaker recover. Set it before putting anything that costs money or
+     *  touches real data behind this server. */
+    admin_token: str("ADMIN_TOKEN", ""),
   };
 }
 

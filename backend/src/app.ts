@@ -67,16 +67,32 @@ function sendError(
   };
   if (extra.timings) body.timings_ms = extra.timings;
   reply.header("X-Request-ID", rid);
+  // Whole seconds per RFC 9110; round up so clients never retry early.
   if (extra.retryAfterS != null) reply.header("Retry-After", String(Math.max(1, Math.ceil(extra.retryAfterS))));
   return reply.code(status).send(body);
 }
 
 export async function buildApp(settings: Settings, service: InferenceService): Promise<FastifyInstance> {
   const app = Fastify({ logger: false, bodyLimit: 1_048_576 });
+  // CORS_ORIGINS is a comma-separated allow-list, or "*" for any origin.
+  // A deployed demo usually wants "*": Vercel mints a new preview URL for every
+  // deployment, and this API serves no private data. Pin it to real domains the
+  // moment the server sits in front of anything that costs money.
   const origins = settings.cors_origins.split(",").map((o) => o.trim()).filter(Boolean);
-  await app.register(cors, { origin: origins, methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"], exposedHeaders: ["X-Request-ID", "Retry-After"] });
+  const anyOrigin = origins.includes("*");
+  const allowOrigin = (origin: string | undefined): boolean => !!origin && (anyOrigin || origins.includes(origin));
+  await app.register(cors, {
+    origin: anyOrigin ? true : origins,
+    methods: ["GET", "POST", "PATCH", "DELETE", "OPTIONS"],
+    exposedHeaders: ["X-Request-ID", "Retry-After"],
+  });
 
   const streams = new Set<ServerResponse>();
+  // The service is NOT started in a Fastify hook: loading a model can take
+  // minutes on a first start (it downloads the weights), far past Fastify's
+  // 10 s hook timeout. The caller starts it after listen(); until then
+  // /healthz answers, /readyz says "warming" and inference returns 503.
+  // SSE responses never end on their own; close them so shutdown can finish.
   app.addHook("preClose", async () => { for (const s of streams) s.end(); });
   app.addHook("onClose", async () => { await service.stop(); });
 
@@ -94,7 +110,7 @@ export async function buildApp(settings: Settings, service: InferenceService): P
     return sendError(reply, rid, "INTERNAL", 500, "Unexpected server error.");
   });
 
-  // ----------------- inference
+  // ------------------------------------------------------------ inference
   app.post<{ Body: { input: string; options?: OptionsIn } }>("/v1/infer", {
     schema: {
       body: {
@@ -148,7 +164,7 @@ export async function buildApp(settings: Settings, service: InferenceService): P
     return { request_id: base, results };
   });
 
-  // ------ observability
+  // -------------------------------------------------------- observability
   app.get("/metrics", async (_req, reply) => {
     reply.header("content-type", service.telemetry.registry.contentType);
     return service.telemetry.registry.metrics();
@@ -182,7 +198,7 @@ export async function buildApp(settings: Settings, service: InferenceService): P
       "cache-control": "no-cache",
       connection: "keep-alive",
       "x-accel-buffering": "no",
-      ...(origin && origins.includes(origin) ? { "access-control-allow-origin": origin, vary: "Origin" } : {}),
+      ...(allowOrigin(origin) ? { "access-control-allow-origin": origin!, vary: "Origin" } : {}),
     });
     res.write("retry: 2000\n\n");
     streams.add(res);
@@ -202,8 +218,22 @@ export async function buildApp(settings: Settings, service: InferenceService): P
     res.on("close", cleanup);
   });
 
-  // --------- admin
-  app.get("/v1/admin/config", async () => ({ mutable: mutableView(settings), all: settings }));
+  // ---------------------------------------------------------------- admin
+  // Open by default (that is what makes the public demo interactive). Set
+  // ADMIN_TOKEN to require a header on every /v1/admin/* route.
+  app.addHook("onRequest", async (req, reply) => {
+    if (!settings.admin_token || !req.url.startsWith("/v1/admin")) return;
+    const sent = req.headers["x-admin-token"];
+    if ((Array.isArray(sent) ? sent[0] : sent) !== settings.admin_token) {
+      return sendError(reply, requestId(req), "UNAUTHORIZED", 401, "This endpoint requires a valid X-Admin-Token header.");
+    }
+  });
+
+  app.get("/v1/admin/config", async () => {
+    // Never echo the token back, even to a caller who just proved they have it.
+    const { admin_token, ...safe } = settings;
+    return { mutable: mutableView(settings), all: { ...safe, admin_token: admin_token ? "set" : "" } };
+  });
   app.patch<{ Body: Record<string, unknown> }>("/v1/admin/config", { schema: { body: { type: "object" } } }, async (req, reply) => {
     let changed;
     try {

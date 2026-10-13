@@ -1,3 +1,29 @@
+/**
+ * Hand-rolled three-state circuit breaker.
+ *
+ * CLOSED     all traffic admitted. Consecutive failures are counted; one success
+ *            resets the count. Reaching the threshold trips to OPEN.
+ * OPEN       nothing admitted. After the cooldown, the next request moves the
+ *            breaker to HALF_OPEN.
+ * HALF_OPEN  a fixed number of probes are admitted, no more. Enough successes
+ *            CLOSE it; any failure re-OPENS it and restarts the cooldown from
+ *            that moment.
+ *
+ * "Failure" means the backend call threw OR took longer than the latency
+ * threshold. A backend answering everything in 30 s has a 0% error rate and is
+ * useless, so slowness has to trip the breaker too.
+ *
+ * What is counted is a backend call, which here is a batch. One failed batch of
+ * 16 is one failure, not 16; counting per request would let a single bad batch
+ * trip the breaker alone and tie the threshold to the batch size.
+ *
+ * Generations: every transition bumps `generation`, `allow()` stamps each
+ * Permit with it, and outcomes count only for permits of the current
+ * generation. A slow request admitted while CLOSED may finish after the breaker
+ * has gone OPEN -> HALF_OPEN; without the stamp its result would be taken as a
+ * probe verdict, on evidence from before the outage.
+ */
+
 export type State = "closed" | "open" | "half_open";
 
 export type Permit = { generation: number; probe: boolean; settled: boolean };

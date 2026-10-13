@@ -150,7 +150,7 @@ export class InferenceService {
     if (!this.overrides.embedder && s.embedder !== "hash") {
       this.telemetry.log("model_loading", { model: s.embedder_model, note: "first start downloads the weights; /readyz returns 503 until ready" });
     }
-    this.embedder = this.overrides.embedder ?? (await buildEmbedder(s.embedder, { dim: s.embedding_dim, model: s.embedder_model, log: progress }));
+    this.embedder = this.overrides.embedder ?? (await buildEmbedder(s.embedder, { dim: s.embedding_dim, model: s.embedder_model, log: progress, dtype: s.embedder_dtype }));
     if (this.overrides.backend) this.backend = this.overrides.backend;
     else if (s.model_backend === "stub") {
       this.backend = new StubBackend({ baseMs: s.stub_latency_ms, perItemMs: s.stub_per_item_ms, jitterMs: s.stub_jitter_ms, concurrency: s.model_concurrency });

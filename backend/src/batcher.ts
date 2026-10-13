@@ -1,9 +1,37 @@
+/**
+ * Dynamic batcher: dual trigger (time window OR max size) with per-request
+ * response correlation.
+ *
+ * Callers `await batcher.submit(item)` and get back their own result as if they
+ * had called the backend alone. Behind that, one background loop:
+ *
+ * 1. waits for a free device slot (`maxInflight`; 1 for a single GPU),
+ * 2. waits for the first queued item and starts the window clock THEN, not at
+ *    loop entry. Starting earlier makes a request that arrives late in an idle
+ *    window ship alone, the classic naive-batcher bug,
+ * 3. drains more items until the batch is full or the window closes,
+ * 4. hands the batch to `process` as ONE call, without awaiting it, and goes
+ *    straight back to step 1, so collecting the next batch overlaps running
+ *    this one.
+ *
+ * Results map back by position: result i resolves caller i. If the call fails,
+ * every caller in the batch gets the error, because a batch either ran or not.
+ *
+ * Waiting for a device slot BEFORE forming a batch is deliberate. While the
+ * device is busy requests pile up, and the next batch is formed from that
+ * backlog at full size. Forming batches eagerly and parking them on the device
+ * lock would produce many small batches instead.
+ *
+ * Config is read through functions so it can change at runtime.
+ */
 import { randomUUID } from "node:crypto";
 import { AsyncQueue, Semaphore, TimeoutError, now, withTimeout } from "./async.js";
 
 export class QueueFullError extends Error { override name = "QueueFullError"; }
 export class BatcherClosedError extends Error { override name = "BatcherClosedError"; }
 export class BatchTimeoutError extends Error { override name = "BatchTimeoutError"; }
+/** The backend returned a different number of results than inputs. Never
+ *  demultiplex positionally then: every caller would get someone else's answer. */
 export class BatchSizeMismatchError extends Error { override name = "BatchSizeMismatchError"; }
 export class RequestTimeoutError extends Error { override name = "RequestTimeoutError"; }
 
@@ -124,6 +152,10 @@ export class DynamicBatcher<T, R> {
     return this.queue.size;
   }
 
+  /** Enqueue one item and wait for its own result.
+   *  On `timeoutMs`, the caller is rejected with RequestTimeoutError and the
+   *  item is marked abandoned, so the batcher skips it instead of computing a
+   *  result nobody will read. */
   submit(item: T, opts: { timeoutMs?: number } = {}): Promise<[R, BatchInfo]> {
     if (this.closing || !this.loop) {
       return Promise.reject(new BatcherClosedError(`batcher '${this.name}' is not accepting work`));

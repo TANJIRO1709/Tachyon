@@ -1,3 +1,19 @@
+/**
+ * Embedders. Both return L2-normalised Float32Array rows of length `dim`.
+ *
+ * MiniLMEmbedder  all-MiniLM-L6-v2, run in-process through Transformers.js
+ *                 (ONNX Runtime). Real semantics: "What is the capital of
+ *                 France?" and "Which city is France's capital?" land close.
+ *                 The production default. Weights are downloaded once from the
+ *                 HuggingFace Hub (public, no key) and cached on disk.
+ *
+ * HashEmbedder    Offline lexical fallback with no download. Content words and
+ *                 character trigrams are feature-hashed into `dim` buckets. It
+ *                 matches rewordings that share content words ("What is
+ *                 Python?" / "Tell me about Python"), NOT real paraphrases.
+ *                 It exists so the test suite runs offline.
+ */
+
 import { downloadLogger, loadTransformers } from "./transformers.js";
 
 export interface Embedder {
@@ -16,6 +32,7 @@ const STOPWORDS = new Set(
    some any all just also very really quite`.split(/\s+/),
 );
 
+/** Tiny stemmer: enough that "capitals"/"capital" and "running"/"run" collide. */
 function stem(tok: string): string {
   for (const suf of ["ing", "ies", "es", "ed", "s"]) {
     if (tok.length > suf.length + 2 && tok.endsWith(suf)) return tok.slice(0, -suf.length) + (suf === "ies" ? "y" : "");
@@ -23,6 +40,7 @@ function stem(tok: string): string {
   return tok;
 }
 
+/** FNV-1a, 32-bit. Deterministic across runs and machines. */
 function fnv1a(s: string): number {
   let h = 0x811c9dc5;
   for (let i = 0; i < s.length; i++) {
@@ -78,10 +96,10 @@ export class MiniLMEmbedder implements Embedder {
   readonly name = "minilm";
   private constructor(private readonly extractor: FeatureExtractor, readonly dim: number, readonly model: string) {}
 
-  static async load(model: string, log: (msg: string) => void = () => {}): Promise<MiniLMEmbedder> {
+  static async load(model: string, log: (msg: string) => void = () => {}, dtype = "fp32"): Promise<MiniLMEmbedder> {
     const { pipeline } = await loadTransformers();
     const extractor = (await pipeline("feature-extraction", model, {
-      dtype: "fp32",
+      dtype: dtype as "fp32",
       progress_callback: downloadLogger(model, log),
     })) as unknown as FeatureExtractor;
     const probe = await extractor(["warm up"], { pooling: "mean", normalize: true });
@@ -100,9 +118,9 @@ export class MiniLMEmbedder implements Embedder {
 
 export async function buildEmbedder(
   kind: string,
-  opts: { dim: number; model: string; log?: (msg: string) => void },
+  opts: { dim: number; model: string; log?: (msg: string) => void; dtype?: string },
 ): Promise<Embedder> {
-  if (kind === "minilm") return MiniLMEmbedder.load(opts.model, opts.log);
+  if (kind === "minilm") return MiniLMEmbedder.load(opts.model, opts.log, opts.dtype);
   if (kind === "hash") return new HashEmbedder(opts.dim);
   throw new RangeError(`unknown EMBEDDER '${kind}' (expected 'minilm' or 'hash')`);
 }

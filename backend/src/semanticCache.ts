@@ -1,3 +1,31 @@
+/**
+ * Semantic cache: embedding-similarity lookup with TTL and LRU eviction.
+ *
+ * Design
+ * ------
+ * Three structures kept in lockstep, indexed by *slot*:
+ *
+ * - `matrix`  one pre-allocated Float32Array of capacity x dim, holding
+ *   L2-normalised embeddings. Rows are unit vectors, so cosine similarity is a
+ *   plain dot product and a lookup is one pass over the live rows.
+ * - `entries` per-slot metadata (query, response, timestamps, hits).
+ * - `lru`     a Map of slot -> true. JS Maps iterate in insertion order, so
+ *   delete + re-set moves a slot to the most-recent end, and the first key is
+ *   the least recently used. Both are O(1).
+ *
+ * Freed slots go on a min-heap, so new entries reuse the lowest free row and
+ * the scanned region [0, highWater) stays as compact as possible.
+ *
+ * Why brute force instead of an ANN index: at 10k x 384 a scan is ~4M
+ * multiply-adds, measured at 5.5 ms on a 2.1 GHz cloud vCPU. That runs on the
+ * event loop, so it is the main CPU cost per request; it grows linearly with
+ * capacity (44 ms at 50k). Past ~10k entries, move the scan to a worker thread,
+ * WebAssembly SIMD, or an HNSW index.
+ *
+ * Every method is synchronous and the server runs one event loop, so no method
+ * can interleave with another. No locks.
+ */
+
 export type Clock = () => number; // seconds
 
 type Entry = {
@@ -20,8 +48,12 @@ export type CacheHit = {
 
 export type CacheMiss = {
   kind: "miss";
+  /** Best similarity among live entries, even though below the threshold.
+   *  Logged so near-misses are visible when tuning the threshold. */
   bestSimilarity: number | null;
   expiredSkipped: number;
+  /** Write sequence number at scan time, and the nearest live row then.
+   *  Lets `put` dedupe without scanning the whole matrix again. */
   seenAt: number;
   nearest: { slot: number; similarity: number } | null;
 };
@@ -195,6 +227,18 @@ export class SemanticCache {
     return s;
   }
 
+  // --------------------------------------------------------------- lookup
+  /**
+   * Most similar live, unexpired entry at or above `threshold`.
+   *
+   * Takes the top-k candidates rather than the single nearest, so an expired
+   * nearest neighbour does not force a model call when a valid near-match sits
+   * right behind it. Expired candidates are evicted on the way (lazy TTL).
+   *
+   * `record: false` is used for the relaxed fallback during an outage: that
+   * request already counted as a miss, and counting it again would distort the
+   * hit rate. The caller reports it through `noteDegradedHit`.
+   */
   lookup(vec: ArrayLike<number>, threshold: number, opts: { record?: boolean } = {}): CacheHit | CacheMiss {
     const record = opts.record ?? true;
     const q = this.normalise(vec);
@@ -245,6 +289,16 @@ export class SemanticCache {
     this.stats.degradedSimilaritySum += similarity;
   }
 
+  // --------------------------------------------------------------- insert
+  /** The most similar live row, for the dedupe check in `put`.
+   *
+   *  Without a hint this is a full scan. With the miss from this request's own
+   *  lookup it is incremental: the lookup already knows the nearest row as of
+   *  `seenAt`, so only rows written since then need checking. Usually that is a
+   *  handful, which turns the second full scan per miss into almost nothing.
+   *  Those recent writes are exactly the concurrent misses for the same
+   *  question that dedupe exists to catch. If the write log has rolled past
+   *  `seenAt`, fall back to a full scan. */
   private nearestLive(q: Float32Array, hint?: CacheMiss): { slot: number; similarity: number } | null {
     const oldestLogged = this.writes.length ? this.writes[0]!.seq : this.seq + 1;
     if (!hint || hint.seenAt + 1 < oldestLogged) {
@@ -265,6 +319,10 @@ export class SemanticCache {
     return best;
   }
 
+  /** Insert or refresh. Returns the slot used. A near-identical query that is
+   *  already cached is refreshed in place rather than duplicated: concurrent
+   *  misses for one question would otherwise fill the cache with copies.
+   *  Pass the CacheMiss from this request's lookup to make the check cheap. */
   put(vec: ArrayLike<number>, query: string, response: unknown, hint?: CacheMiss): number {
     const q = this.normalise(vec);
     const t = this.clock();
