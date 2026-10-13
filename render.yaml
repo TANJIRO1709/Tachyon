@@ -1,12 +1,3 @@
-# Render blueprint for the Tachyon backend.
-#
-# Render runs this as a long-lived container, which is what the serving layer
-# needs: the batch queue, the semantic cache and the circuit breaker all live in
-# one process's memory, and none of them survive a serverless invocation.
-#
-# Deploy: Render dashboard -> New -> Blueprint -> point at this repo.
-# If Render rejects a key here, create the service through the UI instead and
-# copy these settings across; blueprint schema changes occasionally.
 services:
   - type: web
     name: tachyon-backend
@@ -16,10 +7,8 @@ services:
     plan: free # 512 MB RAM; sleeps after ~15 min idle
     region: singapore # closest to India; oregon / frankfurt also available
     healthCheckPath: /readyz # 503 while the model loads, 200 once serving
-    dockerBuildArgs:
-      WITH_MODELS: "true" # bake the embedder weights into the image
-      PREFETCH_HF_MODEL: "false" # skip DistilBERT: the demo uses the stub
-      EMBEDDER_DTYPE: fp32 # "q8" if 512 MB turns out to be tight
+    # Docker build args are not accepted by the current Render blueprint schema.
+    # The defaults in backend/Dockerfile already match the intended demo setup.
     envVars:
       - key: EMBEDDER
         value: minilm # real semantic embeddings
