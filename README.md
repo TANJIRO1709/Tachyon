@@ -63,6 +63,8 @@ The server starts listening immediately and loads the model in the background. U
 
 Production build: `npm run build && npm start`. To serve a real model instead of the stub, set `MODEL_BACKEND=hf` (DistilBERT SST-2 sentiment by default; `HF_MODEL` and `HF_TASK` change it).
 
+**Deploying it:** backend on Render (a long-lived container), dashboard on Vercel. See **[DEPLOY.md](DEPLOY.md)**, which also explains why the backend cannot run on Vercel's serverless functions: batching, the cache and the breaker all depend on one process holding state across requests.
+
 Every tunable is an environment variable (see [`backend/src/config.ts`](backend/src/config.ts)), and most are adjustable at runtime through `PATCH /v1/admin/config` or the dashboard.
 
 ---
@@ -424,7 +426,7 @@ Errors share one shape and carry a machine-readable code (`INVALID_REQUEST` 400,
 
 ```bash
 cd backend
-npm test                 # 67 tests, ~6 s, offline
+npm test                 # 72 tests, ~6 s, offline
 npm run test:minilm      # semantic tests, downloads the MiniLM weights
 ```
 
@@ -433,7 +435,7 @@ npm run test:minilm      # semantic tests, downloads the MiniLM weights
 | `batcher.test.ts` (17) | Per-request correlation across 200 concurrent callers; full batches dispatch before the window; the window starts at the first item; backlog forms full batches; failures reach every caller; a result-count mismatch errors instead of misrouting; queue-full sheds; abandoned requests are skipped; graceful stop drains |
 | `circuitBreaker.test.ts` (17) | Every transition; consecutive vs cumulative; slow trips; a batch counts once; bounded probes; probe failure restarts the cooldown; stale results ignored; leaked probes released |
 | `semanticCache.test.ts` (19) | Threshold edges; non-exact matching; top-k past an expired neighbour; TTL; LRU by use, not insertion; capacity under churn; dedupe, including the incremental check catching a concurrent insert, ignoring a reused slot, and falling back to a full scan; accounting during degradation |
-| `service.test.ts` (14) | End to end through the pipeline and HTTP: batching plus routing, cache hits skip the model, degraded serving on open circuit and on model error, fast reject skips embedding, bypass clients get errors not stale answers, recovery through half-open, 429, timeout releases the probe, log schema, `/metrics` validity |
+| `service.test.ts` (19) | End to end through the pipeline and HTTP: batching plus routing, cache hits skip the model, degraded serving on open circuit and on model error, fast reject skips embedding, bypass clients get errors not stale answers, recovery through half-open, 429, timeout releases the probe, log schema, `/metrics` validity |
 
 The suite passed five runs in a row (some batcher tests depend on timing, so this was checked). Graceful shutdown was also checked by hand: 20 requests in flight when `SIGTERM` arrived, all 20 answered with 200, then a clean exit.
 
@@ -448,4 +450,4 @@ Said plainly:
 - **The benchmarks use the stub.** It is shaped like a GPU (fixed cost plus per-item cost, one batch at a time), and the numbers follow from that shape. With `MODEL_BACKEND=hf` the gain depends on how well the real model batches on your hardware; rerun `npm run bench:load` to measure it.
 - **Not yet run in the build environment:** the MiniLM semantic tests and threshold sweep (model weights could not be downloaded there), and `docker compose up` (no Docker daemon). Everything else in this README was run, and the numbers are measured.
 - **The Docker image is large on disk** because `onnxruntime-node` ships native binaries (about 540 MB). Runtime memory is small.
-- No auth on the admin API, no streaming responses, no token-level continuous batching. Those belong to a generative-model server, and this layer is model-agnostic.
+- The admin API is open unless `ADMIN_TOKEN` is set, which is deliberate for a public demo (the worst a visitor can do is flush a cache of stub answers). Set the token before putting a real model behind it. No streaming responses, and no token-level continuous batching. Those belong to a generative-model server, and this layer is model-agnostic.
